@@ -1,0 +1,84 @@
+Problem Set 1: Nishant Subramani
+
+1) The hump distribution is seen in some form in all predictor variables
+except residual sugar and alcohol which have a skewed right distribution.
+Volatile acidity, residual sugar, chlorides, free sulfur dioxide and total sulfur dioxide
+all have outliers in some form or fashion.
+
+
+2) The zeroR algorithm classifies instances based on the majority class.
+It will classify all instances with one value, that value being the majority class.
+62.381% is the accuracy percentage, which corresponds to the percentage abundance of
+'bad' in the quality class variable. Performance of the ZeroR classifier is the absolute
+baseline for classification as we only classify everything as the majority class.
+The hope is that more complicated classifiers can classify instances beyond assigning a
+uniform value to all examples.
+
+3) The alcohol parameter is the most informative predictor as it is the first attribute
+with which the C4.5 tree splits off of. Its influence on wine quality is as follows:
+The probability of quality = good given that alcohol is a high value is greater than the probability of quality = good given that alcohol
+is a low value. P(quality = 'good' | alcohol > 10.8) > P(quality = 'good' | alcohol < 10.8).
+
+4) 10-fold cross validation is a method that splits the dataset (in this case the training set)
+into equal mutually-exclusive folds. One fold is held out to test off of, while the other 9 folds are used to build the
+model. This process is iterated 10 times such that each fold is held out exactly once and tested on.
+The main reason for the difference in % between this (85.9788%) and the 'using training set' option (95.873%) is 
+that classifiers do a great job of classifying examples they have already seen. Testing on data that the algorithm 
+has already seen yields to severe overfitting and a largely inflated % accuracy. 10 fold cross validation keeps its 
+training and test sets separate for each of the 10 models it builds, and thus is a much more accurate reflection of how well 
+the algorithm performs on the data given and on the task at hand. It does not necessarily see the same examples in training and test.
+Cross-validation is important because it allows the algorithm to utilize every example in the data as a 
+test example without over-fitting. Furthermore it allows models to be built on almost all of the data (90% in 10-fold case) and thus
+provides an accurate reflection of the model's performance, while not sacrificing a large portion of data to appropriate as a 'test set'
+
+5) Command Line for Model: RandomForest -I 2000 -K 4 -S 1
+Reported Accuracy: 90.6349%
+
+6) I chose the model because the decision trees performed well, so I assumed that an ensemble method would perform better.
+Random Forest is an ensemble method of Cart Trees and thus performs better in general than a single J48 (C4.5) tree. 
+It is a model that builds a large number of random trees with a random selection of features and has those vote. In general,
+the class that most of the trees predict will be chosen for classification. The validation strategy was 10-fold cross-validation 
+because that is the general standard. I varied the num features argument to be the ceiling of sqrt(n) where n is the number of 
+predictors which is the general accepted default for random forests. I also built more trees than the standard (2000). 
+These are shown in the command line for the model.
+
+7) Since the learning curve is generally increasing in performance the larger your training set is, the larger the 
+training set (the larger your number of folds) the better your performance will be. You also need to take into consideration
+the variance of test set. Having a tiny test set per model (larger number of folds) increases variance and is a problem. As a rule of thumb, 
+10-fold cross validation is used because the learning curve is asymptotically bound and has diminishing returns as training set grows.
+10-fold provides a 90% sized training set, and a 10% test set, so this provides a large enough test set to minimize variance while
+having a large enough training set to get close to maximizing performance. One can adjust this 10 fold up and down to check performance,
+but 10-fold cross-validation is a common standard for most machine learning tasks because it does a good job of minimizing variance, while
+having a large enough training set to get close to maximum performance on the learning curve. If the question is considering only trying to
+maximize how close the approximation gets to the learning curve, in specific examples, leave one out cross validation (LOOCV) makes a lot of sense.
+In LOOCV, the training sets are all n-1 examples large which is as close as you can get to the 'true' training set where n is the total number
+of observations you have. The test sets have a size of 1, and this process occurs n different times, with each observation acting alone in a test
+set at least once. The accuracy is measured off of this. This provides severely biased test sets and for some tasks does a absolutely terrible job,
+but in other tasks, it can approximate the learning curve in the closest manner possible. This method has another downside for being computationally
+slow, with n models having to be built.
+
+8) Model building is definitely not obsolete. Specific algorithms have specific properties and characteristics that makes
+them both unique and applicable to different datasets. For example, logistic regression, Bayes Nets, Naive Bayes algorithms
+perform very well on noisy datasets because they are very robust to noise. Tree algorithms in general perform much better than
+the former mentioned algorithms on cleaner data with complex relationships. Even with a ridiculously large dataset to train on, if
+the dataset is inherently noisy, tree algorithms will perform more poorly than regression models, and conversely regression and 
+graphical model algorithms will perform much worse than tree algorithms on clean and complex relationship-driven data. As we discussed in class
+inductive bias is a key part of utilizing machine learning, and without understanding the underlying data and the fields they are associated
+with, we cannot garner a sufficient inductive bias, although deep learning practioners may say that these inductive biases can be garnered
+from the data itself using deep belief networks and other deep learning strategies. 
+
+9) For classifier A, I chose a nearest neighbor classification algorithm LWL with no limit on the k (locally weighted learning) which performed decently
+on the wines (80.9524%), but performed more than 10% worse on the cars (70.5042%). This no limit makes it a majority vote classification strategy. 
+This is due to nearest neighbor classification methods being very succestible to imbalances in the outcome variables distribution. 
+In fact, the LWL classified every example of the car class as 'unacc' except 1 so it performed almost exactly the same as a ZeroR algorithm did,
+which is to be expected. Whereas the LWL algorithm classified things a little better in the wines dataset having a non-zero precision and 
+recall for all classes, and thus a much better F-score. Nearest neighbor classification works significantly better in situations where the predictor 
+variables have a large distribution and are not categorical like they are in the wines case. In short LWL works only when the relative abundances of 
+the outcome variable are relatively close to each other and the predictor variables have a larger distribution. For classifier B, I chose a multilayer perceptron 
+with default settings. This algorithm tends to perform very well on large numbers of classes despite abundance differences and better on categorical data. 
+For this reason, it performed incredibly well (99.2437%) on the cars data, but only at a clip of 84.9735% for the wines. This is due to the algorithm's 
+complexity being able to create and describe complicated relationships between categorical data but sometimes being unable to differentiate enough from a non-categorical set of parameters. 
+
+10) In the wines dataset, the outcome variable is binary with 62/38 abundance percentages, while in the cars dataset, the outcome variable
+can take on 4 values with a 71/22/4/3 abundance percentages. There are classes that have very few examples in the cars dataset, while the
+classes in the wines dataset is much more uniform.
