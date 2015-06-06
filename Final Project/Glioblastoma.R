@@ -4,12 +4,18 @@ install.packages('cvTools')
 install.packages('randomForest')
 install.packages('ggplot2')
 install.packages('miscTools')
+install.packages('klaR')
+install.packages('nnet')
+install.packages('SDMTools')
 library(R.matlab)
 library(stringr)
 library(cvTools)
 library(randomForest)
 library(ggplot2)
 library(miscTools)
+library(klaR)
+library(nnet)
+library(SDMTools)
 
 write_gbm_csv <- function(filename){
 	
@@ -71,6 +77,21 @@ prepare_dataset <- function(feature_csv_file){
 	write.csv(df, file = paste("GBM_", toString(length(colnames(features)) + 6), ".csv", sep = ''))
 }
 
+full_experiment <- function(){
+	csvs <- c("GBM_106.csv", "GBM_206.csv")
+	outcomes <- c("cellularity.Median", "cell_voronoi_area.Median", "cytoplasm_background_intensity_mean.Median", "edge_length.Median", "nucleus_area.Median", "nucleus_background_intensity_mean.Median")
+	corr_thresholds <- c(0.0001, 0.00001, 0.01, 0.0001, 0.01, 0.01)
+	for (k in 1:length(csvs)){
+		print(csvs[k])
+		print('---------------------------------------------------')
+		for (i in 1:length(outcomes)){
+			cross_validation(csvs[k], outcomes[i], corr_thresholds[i], 10)
+			print('----------------------------------------------------')
+		}
+		print('--------------------------------------------------')
+		print('--------------------------------------------------')
+	}
+}
 cross_validation <- function(processed_csv, outcome_name, corr_threshold, num_fold){
 	#Edge Length Median, Threshold = 0.0001
 	#Cellularity Median, Threshold = 0.0001
@@ -97,59 +118,58 @@ cross_validation <- function(processed_csv, outcome_name, corr_threshold, num_fo
 	rf_mse <- 0
 	cart_mse <- 0
 
+	nb_predictions <- vector()
+	nn_predictions <- vector()
+	class_rf_pred <- vector()
+	class_cart_pred <- vector()
+	test_outcome <- vector()
+
 	for (i in 1:num_fold){
+		#Preprocessing and Crossvalidation Steps
+		#
+		#
+		#
 		#test and training set splits
-		test_set_indices <- folds[ ((i-1) * bin_size + 1):(i*bin_size)]
-		
+		test_set_indices <- folds[ ((i-1) * bin_size + 1):(i*bin_size)]		
 		test_set <- data.frame(GBM_data[ test_set_indices, ])
-		#print(dim(test_set))
+
 		colnames(test_set) <- colnames(GBM_data)
 		rownames(test_set) <- rownames(GBM_data)[test_set_indices]
 
 		training_set_indices <- -1*test_set_indices
-
 		training_set <- data.frame(GBM_data[training_set_indices, ])
 		
 		colnames(training_set) <- colnames(GBM_data)
 		rownames(training_set) <- rownames(GBM_data)[training_set_indices]
-		#print(length(rownames(training_set)))
-		#for(j in (num_predictors+1):(num_predictors+6)){
-		#outcome_name <- colnames(GBM_data)[j]
+
 		outcome_index <- match(outcome_name,colnames(GBM_data))
+		
+
+		#Regression Steps
+		#Model 1: Linear Regression with Correlation Screening
+		#Model 2: Random Forest of Regression Trees
+		#Model 3: Cart Tree (Regression)
+
+
 		predictor_list <- univariate_correlation_screening(training_set, outcome_index, corr_threshold)
-		print(length(predictor_list))
+		#print(length(predictor_list))
 		lin_formula <- build_linear_formula(predictor_list, outcome_name)
-		#print(lin_formula)
+
 		linear_model <- lm(formula = lin_formula, data = training_set)
-		#print(linear_model)
-		#print(summary(linear_model))
 		r_sq <- summary(linear_model)$r.squared
-		print(paste("fold", toString(i), " R^2: ", toString(r_sq), sep = ''))	
-			#sig_predictors <- extract_significant_predictors(linear_model)
-			#sig_formula <- build_linear_formula(sig_predictors, outcome_name)
-			#sig_lm <- lm(formula = sig_formula, data = GBM_data)
+		#print(paste("fold", toString(i), " R^2: ", toString(r_sq), sep = ''))	
 			
-			#predictions <- predict(sig_lm, test_set)
+
 		predictions <- predict(linear_model, test_set)
-		#predictions <- vector()
-		#for(j in 1:length(rownames(test_set))){
-			#a <- summary(linear_model)$coefficients[,1]
-			#b <- data.frame(c(1.0, test_set[j,1:num_predictors-1]))
-			#print(str(a))
-			#print(str(b))
-			#predictions <- c(predictions, sum(a*b))
-			#}
-		#print(length(predictions)) 
 		errors <- test_set[,outcome_index] - predictions
-		#print(errors)
 		cvss <- cvss + sum(errors^2)
 		
 		#rf<- randomForest(x = training_set[,1:num_predictors], y = training_set[,outcome_index], xtest = test_set[,1:num_predictors], 
 										#ytest = test_set[,outcome_index], importance = TRUE, ntree = 1000)
-		rf<- randomForest(x = training_set[,1:num_predictors], y = training_set[,outcome_index], importance = TRUE, ntree = 1000)
-		rf_pred = predict(rf, test_set)
+		rf <- randomForest(x = training_set[,1:num_predictors], y = training_set[,outcome_index], importance = TRUE, ntree = 2000)
+		rf_pred <- predict(rf, test_set)
 		r2 <- rSquared(test_set[,outcome_index], abs(test_set[,outcome_index] - rf_pred))
-		print(paste("R^2: ", toString(r2), sep=''))
+		#print(paste("R^2: ", toString(r2), sep=''))
 		mse <- (test_set[,outcome_index] - rf_pred)^2
 		rf_mse <- rf_mse + sum(mse)
 		#print(paste("MSE: ", toString(mse), sep = ''))
@@ -159,12 +179,123 @@ cross_validation <- function(processed_csv, outcome_name, corr_threshold, num_fo
 		c_mse <- (test_set[,outcome_index] - cart_pred)^2
 		cart_mse <- cart_mse + sum(c_mse)
 		#rfcv(trainx = training_set[,1:num_predictors], trainy = training_set[,outcome_index], cv.fold = num_fold, xtest = test_set[,1:num_predictors], ytest = test_set[,outcome_index])		
+
+		#Classification Portion
+		#Step 1: Discretize the Outcome
+		#Model 1: Naive Bayes
+		#Model 2: Neural Network
+		#Model 3: Random Forest (Classification)
+		#Model 4: Cart Tree (Classification)
+
+		#calculates the thresholds
+		thresholds <- quantile(training_set[,outcome_index], .75)
+		train_disc_outcome <- vector()
+		test_disc_outcome <- vector()
+		
+		#makes a new vector for train set with the discrete values
+		for (i in 1:length(rownames(training_set))){
+			
+			attr_val <- training_set[i,outcome_index]
+			
+			if(attr_val > thresholds[1]){
+				
+				train_disc_outcome <- c(train_disc_outcome, 1)
+				
+			} else{
+				train_disc_outcome <- c(train_disc_outcome, 0)
+			}
+
+		}
+
+		#makes a new vector for test set with discrete values
+		for (j in 1:length(rownames(test_set))){
+			attr_val <- test_set[j,outcome_index]
+			
+			if(attr_val > thresholds[1]){
+				
+				test_disc_outcome <- c(test_disc_outcome, 1)
+				
+			} else{
+				test_disc_outcome <- c(test_disc_outcome, 0)
+			}
+		}
+
+		#put it into the data frame
+		training_set[,outcome_index] <- as.factor(train_disc_outcome)
+		test_set[,outcome_index] <- as.factor(test_disc_outcome)
+		test_outcome <- c(test_outcome, as.numeric(test_set[,outcome_index])-1)
+		#Naive Bayes
+		nb <- NaiveBayes(x = training_set[,1:num_predictors], grouping = training_set[,outcome_index])
+		nb_predictions <- c(nb_predictions,as.numeric(predict(nb, test_set, type = "class")$class)-1)
+		#print(nb_predictions)
+		#print(nb_probs)
+		#nb_predictions <- vector()
+		
+		#for (i in 1:length(row(nb_probs))){
+			#nb_predictions <- c(nb_predictions, which.max(nb_probs[i,])-1)
+		#}
+
+		#Actual values are columns
+		#Predicted are rows
+		#nb_auc <- auc(test_outcome, vector(nb_predictions))
+
+		#Logistic Regression
+		#predictor_list <- univariate_correlation_screening(training_set, outcome_index, corr_threshold)
+		#print(length(predictor_list))
+		#logit_formula <- build_linear_formula(predictor_list, outcome_name)
+		#FIX THIS MODEL
+		#logistic_model <- glm(formula = logit_formula, family = binomial, data = training_set)
+		#predictions <- predict(logistic_model, test_set)
+
+
+		#Neural Network
+		nn_form <- as.formula(training_set[,outcome_index]~., training_set[,1:num_predictors])
+		nn <- nnet(nn_form, training_set, size = 4, trace = FALSE)
+		nn_predictions <- c(nn_predictions,as.numeric(predict(nn, test_set, type="class")))
+		#print(nn_predictions)
+		#nn_auc <- auc(test_outcome, vector(nn_predictions))
+
+		#Random Forest
+		class_rf<- randomForest(x = training_set[,1:num_predictors], y = training_set[,outcome_index], importance = TRUE, ntree = 2000)
+		class_rf_pred <- c(class_rf_pred,as.numeric(predict(class_rf, test_set, type="class"))-1)
+		#print(class_rf_pred)
+		#class_rf_auc <- auc(test_outcome, as.vector(class_rf_pred))
+		
+		
+		#Cart
+		class_cart <- randomForest(x = training_set[,1:num_predictors], y = training_set[,outcome_index], importance = TRUE, ntree = 1)
+		class_cart_pred <- c(class_cart_pred,as.numeric(predict(class_cart, test_set, type="class"))-1)
+		
+
+
+
 	}
 	print(paste(outcome_name, ' Lin Reg MSE', ': ', toString(cvss/num_obs), sep = ''))
 	print(paste(outcome_name, ' Random Forest MSE', ': ', toString(rf_mse/num_obs), sep = ''))
 	print(paste(outcome_name, ' Cart MSE', ': ', toString(cart_mse/num_obs), sep = ''))
+	print(paste(outcome_name, ' Naive Bayes AUC: ', toString(auc(test_outcome, nb_predictions))))
+	print(paste(outcome_name, 'Neural Network AUC: ', toString(auc(test_outcome, nn_predictions))))
+	print(paste(outcome_name, 'Random Forest AUC: ', toString(auc(test_outcome, class_rf_pred))))
+	print(paste(outcome_name, 'Cart AUC: ', toString(auc(test_outcome, class_cart_pred))))
+
 }
 
+calc_auc <- function(predictions, test_outcomes){
+	for (i in 1:length(test_outcomes)){
+		predicted_val <- predictions[i]
+		true_val <- test_set[i]
+		two_by_two <- matrix(c(0,0,0,0),2,2)	
+		if(true_val == 0 & predicted_val == 0){
+			two_by_two[1,1] = two_by_two[1,1] + 1
+		} else if (true_val == 0 & predicted_val == 1){
+			two_by_two[2,1] = two_by_two[2,1] + 1
+		} else if (true_val == 1 & predicted_val == 0){
+			two_by_two[1,2] = two_by_two[1,2] + 1
+		} else if (true_val == 1 & predicted_val == 1){
+			two_by_two[2,2] = two_by_two[2,2] + 1
+		} 
+	}
+}
 univariate_correlation_screening <- function(training_set, outcome_index, corr_threshold){
 	#training_set is a data frame
 	num_obs = length(rownames(training_set))
